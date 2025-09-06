@@ -1,0 +1,7 @@
+{
+  "name": "Comic Book Movie Creator",
+  "description": "An interactive, step-by-step application that allows users to co-create a personalized, multimodal 'Comic Book Movie' from an initial idea, generating a complete story with consistent characters, comic-style images, animated scenes, and narration.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
