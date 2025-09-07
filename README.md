@@ -50,7 +50,7 @@ This application uses a modern, powerful tech stack to deliver a seamless experi
     -   **Tailwind CSS:** For a clean, modern, and responsive design.
 -   **Google AI & Cloud APIs:**
     -   **Gemini API (`gemini-2.5-flash`):** Used for understanding the initial idea, generating character descriptions, powering the storyboard chat, and writing the 16-page story script.
-    -   **Imagen 4 (`imagen-4.0-generate-001`):** Used for generating the high-quality Character Model Sheet and all 16 comic panel images.
+    -   **Image Generation (`gemini-2.5-flash-image-preview`):** Used for generating the high-quality Character Model Sheet and all 16 comic panel images.
     -   **Veo (`veo-2.0-generate-001`):** Used for generating the animated video clips from user-selected comic panels.
     -   **Browser Web Speech API:** Used for narration playback and voice input.
 

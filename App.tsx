@@ -118,6 +118,8 @@ const App: React.FC = () => {
         setIsLoading(true);
         setError(null);
         const updatedPages = [...projectState.pages];
+        const RATE_LIMIT_DELAY_MS = 60000; // 60-second delay between video API calls
+        const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
         for (let i = 0; i < selectedIndices.length; i++) {
             const pageIndex = selectedIndices[i];
@@ -126,11 +128,35 @@ const App: React.FC = () => {
                 updatedPages[pageIndex].animate = true;
                 const videoUrl = await generateVideoForPage(updatedPages[pageIndex]);
                 updatedPages[pageIndex].videoUrl = videoUrl;
-                // Incrementally update state to show progress if needed, though not strictly necessary
+                // Incrementally update state to show progress
                 setProjectState(prev => ({ ...prev, pages: [...updatedPages] }));
-            } catch (err) {
+
+                // Add a delay before starting the next video to avoid rate limiting
+                if (i < selectedIndices.length - 1) {
+                    setAnimationStatus(`Pausing for ${RATE_LIMIT_DELAY_MS / 1000}s to cool down the video engine...`);
+                    await delay(RATE_LIMIT_DELAY_MS);
+                }
+            } catch (err: any) {
                 console.error(`Failed to generate video for page ${pageIndex + 1}:`, err);
-                setError(`Failed to generate video for page ${pageIndex + 1}. Please try again later.`);
+                
+                let detailedMessage = "An unexpected error occurred. Please try again later.";
+                // Attempt to parse a JSON string error if it exists
+                try {
+                    const errorJson = JSON.parse(err.message);
+                    if (errorJson?.error?.message) {
+                        detailedMessage = errorJson.error.message;
+                    }
+                } catch(e) {
+                     if (err instanceof Error) {
+                        detailedMessage = err.message;
+                    } else if (err?.error?.message) {
+                        detailedMessage = err.error.message;
+                    } else if (typeof err === 'string') {
+                        detailedMessage = err;
+                    }
+                }
+                
+                setError(`Failed to generate video for page ${pageIndex + 1}. ${detailedMessage}`);
                 setIsLoading(false);
                 setAnimationStatus('');
                 return; // Stop the process if one video fails

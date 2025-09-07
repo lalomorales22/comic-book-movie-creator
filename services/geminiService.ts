@@ -1,4 +1,4 @@
-import { GoogleGenAI, GenerateContentResponse, Chat, Type } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse, Chat, Type, Modality } from "@google/genai";
 import type { Page } from '../types';
 
 // IMPORTANT: This key is managed by the environment and must not be modified.
@@ -38,21 +38,24 @@ export async function generateCharacterDescription(idea: { type: 'text' | 'voice
 }
 
 export async function generateCharacterSheet(description: string): Promise<string> {
-    const prompt = `A character model sheet for a children's comic book character. The character is: ${description}. Show a full-body front view and a full-body side view. The background should be plain white. The style should be clean, with simple lines and vibrant colors, suitable for a comic book.`;
+    const prompt = `A character model sheet for a children's comic book character. The character is: ${description}. Show a full-body front view and a full-body side view. The background should be plain white. The style should be clean, with simple lines and vibrant colors, suitable for a comic book. Aspect ratio 1:1.`;
     
-    const response = await ai.models.generateImages({
-        model: 'imagen-4.0-generate-001',
-        prompt,
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image-preview',
+        contents: prompt,
         config: {
-            numberOfImages: 1,
-            outputMimeType: 'image/png',
-            aspectRatio: '1:1',
+            responseModalities: [Modality.IMAGE, Modality.TEXT],
         },
     });
 
-    if (response.generatedImages && response.generatedImages.length > 0) {
-        return response.generatedImages[0].image.imageBytes;
+    if (response.candidates && response.candidates[0]?.content?.parts) {
+        for (const part of response.candidates[0].content.parts) {
+            if (part.inlineData) {
+                return part.inlineData.data;
+            }
+        }
     }
+    
     throw new Error("Failed to generate character sheet.");
 }
 
@@ -114,19 +117,30 @@ export async function generateStoryPages(
 
         onProgress(((i + 0.5) / totalPages) * 100, `Generating image for page ${i + 1}...`);
         
-        const imagePrompt = `A comic book panel illustration for a children's story. The character is: ${characterDescription}. The scene is: ${pageData.text}. Style: vibrant, colorful, clean lines, friendly cartoon style.`;
+        const imagePrompt = `A comic book panel illustration for a children's story. The character is: ${characterDescription}. The scene is: ${pageData.text}. Style: vibrant, colorful, clean lines, friendly cartoon style. Aspect ratio 4:3.`;
         
-        const imageResponse = await ai.models.generateImages({
-            model: 'imagen-4.0-generate-001',
-            prompt: imagePrompt,
+        const imageResponse = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image-preview',
+            contents: imagePrompt,
             config: {
-                numberOfImages: 1,
-                outputMimeType: 'image/png',
-                aspectRatio: '4:3',
+                responseModalities: [Modality.IMAGE, Modality.TEXT],
             },
         });
         
-        const base64Image = imageResponse.generatedImages[0].image.imageBytes;
+        let base64Image = '';
+        if (imageResponse.candidates && imageResponse.candidates[0]?.content?.parts) {
+            for (const part of imageResponse.candidates[0].content.parts) {
+                if (part.inlineData) {
+                    base64Image = part.inlineData.data;
+                    break;
+                }
+            }
+        }
+        
+        if (!base64Image) {
+            throw new Error(`Failed to generate image for page ${i + 1}.`);
+        }
+
         const imageUrl = `data:image/png;base64,${base64Image}`;
 
         pages.push({
@@ -177,10 +191,17 @@ export async function generateVideoForPage(page: Page): Promise<string> {
         console.log(`Polling for page ${page.pageNumber}... Status: ${operation.done ? 'Done' : 'In Progress'}`);
     }
 
+    // Check for errors after the operation is done
+    if (operation.error) {
+        const errorMessage = operation.error.message || 'Unknown error';
+        console.error(`Video generation failed for page ${page.pageNumber}:`, operation.error);
+        throw new Error(`Video generation failed for page ${page.pageNumber}: ${errorMessage}`);
+    }
+
     const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
 
     if (!downloadLink) {
-        throw new Error(`Failed to get video download link for page ${page.pageNumber}.`);
+        throw new Error(`Failed to get video download link for page ${page.pageNumber}. The operation may have completed without producing a video.`);
     }
     
     console.log(`Fetching generated video for page ${page.pageNumber}`);
