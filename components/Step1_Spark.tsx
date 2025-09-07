@@ -26,17 +26,48 @@ const Step1Spark: React.FC<Step1SparkProps> = ({ onSubmit, isLoading }) => {
   const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
-    if ('webkitSpeechRecognition' in window) {
-      const recognition = new (window as any).webkitSpeechRecognition();
-      recognition.continuous = false;
+    // 'SpeechRecognition' is the standard, 'webkitSpeechRecognition' is for Chrome/Safari
+    const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false; // Only capture a single utterance
       recognition.lang = 'en-US';
-      recognition.onstart = () => setIsRecording(true);
-      recognition.onend = () => setIsRecording(false);
+      recognition.interimResults = false; // We don't need intermediate results
+
+      recognition.onstart = () => {
+        setIsRecording(true);
+      };
+
+      recognition.onend = () => {
+        setIsRecording(false);
+      };
+
+      // This event fires when speech has been successfully recognized
       recognition.onresult = (event: any) => {
+        // The result is a SpeechRecognitionResultList object
+        // We get the transcript from the first result
         const transcript = event.results[0][0].transcript;
         setText(transcript);
       };
+
+      // Handle errors, which is crucial for debugging and user feedback
+      recognition.onerror = (event: any) => {
+        console.error("Speech recognition error:", event.error);
+        if (event.error === 'no-speech') {
+            // This is a common case, not necessarily an error to show the user
+            console.log("No speech was detected.");
+        } else if (event.error === 'not-allowed') {
+            // This happens if the user denies microphone permission
+            console.error("Microphone access was not granted.");
+        }
+        // Ensure the recording state is reset on error.
+        setIsRecording(false);
+      };
+
       recognitionRef.current = recognition;
+    } else {
+      console.warn("Speech Recognition API is not supported in this browser.");
     }
   }, []);
 
@@ -53,10 +84,13 @@ const Step1Spark: React.FC<Step1SparkProps> = ({ onSubmit, isLoading }) => {
   };
 
   const toggleRecording = () => {
+    if (!recognitionRef.current) return; // Guard against unsupported browser
+
     if (isRecording) {
-      recognitionRef.current?.stop();
+      recognitionRef.current.stop();
     } else {
-      recognitionRef.current?.start();
+      setText(''); // Clear any previous text before starting a new recording
+      recognitionRef.current.start();
     }
   };
 
